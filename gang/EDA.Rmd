@@ -1,0 +1,296 @@
+---
+title: "EDA -- Gang Boundaries in Chicago over 2007-2021"
+subtitle: "Violence and Enforcement Team"
+author: "Hanyin Wang"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    highlight: "tango"
+    code_folding: hide
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## Overview
+
+This file presents a brief EDA shows a set of initial plots for Chicago gang boundary analysis. 
+
+## Datasets 
+
+Data for gang boundaries are obtained from the [Police Department GIS Data](https://gis.chicagopolice.org/search?categories=) as part of the  [Chicago Police Department CLEARMap database](https://gis.chicagopolice.org/), provided by the Office of Public Safety Administration (OPSA). The data are updated annually. Availabble in the dataset are the data from 2007 to 2021, except for 2013 and 2020.
+
+<br>
+
+## Map of Chicago Community Boundaries
+
+The gang boundaries are overlaid with Chicago community boundaries shown below.
+```{r load-packages-community-map, message=FALSE, warning=FALSE, results = "hide"}
+library(sf)
+library(ggplot2)
+library(tidyverse)
+library(gridExtra)
+library(pointdexter)
+
+chicago_community <- st_read(
+  'data/Boundaries - Community Areas (current)/geo_export_2099592d-f4d8-46cf-9881-dd554256e0fd.shp'
+)
+ggplot() + 
+  geom_sf(data = chicago_community) + 
+  ggtitle("Chicago Boundary Plot (Community)") + 
+  coord_sf() +
+  theme_minimal()
+```
+
+<br>
+
+
+## Chicago gangs and alliances
+
+
+
+In total, there are 50 gangs in Chicago as of 2021. They can majorly be divided into two major alliances.
+
+The _Folk Nation_ (commonly referred to as Folk or Folks) is an alliance of street gangs originating in Chicago, established in 1978. The alliance has since spread throughout the United States, particularly the Midwest region of the United States. They are rivals of the People Nation.
+<br>
+_People Nation_ is an alliance of street gangs generally associated with the Chicago area. They are rivals of the Folk Nation alliance of gangs. The People Nation was also formed in 1978 in reaction to the creation of the Folk Nation alliance of gangs. 
+<br>
+Other than the people and folks nation, some gangs choose not to join either of the alliance.
+<br>
+Shown below is a distribution of the gangs belong to each alliance.
+```{r gang-alliance, message=FALSE, warning=FALSE, results = "hide"}
+# explore nations
+nations_2021 <- read_csv('data/2021_Gang_Boundaries_and_nations.csv')
+nations_2021 %>% 
+  mutate(nation = factor(nation, levels = c('People','Folks','None'))) %>% 
+  ggplot()+
+  geom_bar(aes(x = nation,
+               color = nation,
+               fill = nation),
+           alpha = 0.4)+
+  ggtitle('Alliance of Chicago Gangs -- 2021') + 
+  theme_minimal()
+
+# read in all gang nations
+nations <- read_csv('data/Gang_nations.csv') %>% 
+  mutate(nation = factor(nation, levels = c('People','Folks','None')))
+```
+
+In our dataset, there are 19 gangs in the people nation, 26 gangs in the folks nation, and 5 gangs choose not to join either of the alliance. 
+
+## Overlay Gang Boundary with Community Boundary in Chicago
+```{r gang-2021, message=FALSE, warning=FALSE, results = "hide"}
+# community boundaries
+data("community_areas_spdf")
+# create list of coordinate pair matrices for each community area ----
+community.area.boundaries <-
+  GetPolygonBoundaries(my.polygon = community_areas_spdf
+                       , labels = community_areas_spdf$community)
+
+# turn off the s2 processing
+sf::sf_use_s2(FALSE)
+
+gang_boundary_2021 <- 
+  st_read(
+    "data/2021_Gang_Boundaries/2021_Gang_Boundaries.shp") %>% 
+  left_join(nations %>% 
+              dplyr::select(GANG_NAME, nation) %>% 
+              mutate(nation = factor(nation, levels = c('People','Folks','None'))), 
+            by = 'GANG_NAME') %>% 
+  st_cast("POLYGON") %>% 
+  st_transform(4326) %>% 
+  mutate(
+    # find the centroid of each gang territory
+    centroid = st_centroid(.)$geometry,
+    # get the latitude and longitude for centroids
+    centroid_lng = st_coordinates(centroid)[,1],
+    centroid_lat = st_coordinates(centroid)[,2],
+    # find the corresponding community
+    community = LabelPointsWithinPolygons(lat = centroid_lat,
+                                          lng = centroid_lng,
+                                          polygon.boundaries = community.area.boundaries))
+
+ggplot() + 
+  geom_sf(data = chicago_community,
+          color = 'gray') + 
+  geom_sf(data = gang_boundary_2021, 
+          aes(fill = nation,
+              color = nation),
+          alpha = 0.8) + 
+  geom_sf(data = gang_boundary_2021$centroid, 
+          color = 'pink',
+          alpha = 0.8,
+          size = 0.5) + 
+  coord_sf() +
+  ggtitle('Gang Boundaries 2021 (with centroid location)') +
+  theme_minimal()
+```
+
+From the map, we can see folks nation gangs have higher coverage in terms of area of territories. However, the distribution of people nation and folks nation gangs are fairly even through out the city. There are more people nation gangs in the west, while there are  more folks nation gangs in the south. Note that each gang may have more than one territory, so the number of territories shown on the map should not equal to the number of gangs existing in Chicago.
+
+
+## Changes over 2007 to 2021
+
+First we investigate the changes in the number of gangs during 2007 and 2021. 
+```{r number-of-gangs, message=FALSE, warning=FALSE, results = "hide"}
+gang_bound <- function(yr){
+  gang_boundary <- st_read(
+    paste0("data/", yr, "_Gang_Boundaries/", yr, "_Gang_Boundaries.shp")) %>% 
+    mutate(year = yr)
+  # merge with 
+  gang_boundary <- gang_boundary %>% 
+    left_join(nations %>% 
+                dplyr::select(GANG_NAME, nation) %>% 
+                mutate(nation = factor(nation, levels = c('People','Folks','None'))), 
+              by = 'GANG_NAME') %>% 
+    st_cast("POLYGON") %>% 
+    st_transform(4326) %>% 
+    mutate(
+      # find the centroid of each gang territory
+      centroid = st_centroid(.)$geometry,
+      # get the latitude and longitude for centroids
+      centroid_lng = st_coordinates(centroid)[,1],
+      centroid_lat = st_coordinates(centroid)[,2],
+      # find the corresponding community
+      community = LabelPointsWithinPolygons(lat = centroid_lat,
+                                            lng = centroid_lng,
+                                            polygon.boundaries = community.area.boundaries))
+  names(gang_boundary) <- c("OBJECTID", "GANG_NAME", "Shape__Are", "Shape__Len", "year", 'nation', "geometry","centroid",
+                            "centroid_lng", "centroid_lat", "community")
+  return(gang_boundary)
+}
+
+gang_boundary_2007_2019 <- gang_boundary_2021 %>% 
+  mutate(year = 2021) %>% 
+  dplyr::select(OBJECTID, GANG_NAME, Shape__Are, Shape__Len, year, nation, geometry, centroid, centroid_lng, centroid_lat, community)
+for (x in c('2007','2008','2009','2010','2011','2012','2014','2015','2016','2017','2018','2019')) {
+  gang_boundary_2007_2019 <- rbind(gang_boundary_2007_2019, gang_bound(x))
+}
+
+
+gang_boundary_2007_2019 %>% 
+  as_tibble() %>% 
+  group_by(year) %>% 
+  summarise(count = n()) %>% 
+  ggplot(aes(x = year, y = count, group = 1)) +
+  geom_line() +
+  stat_smooth()+
+  geom_point() +
+  labs(
+    title = 'Number of Gangs Territories in Chicago during 2007 and 2021',
+    subtitle = '(Note: data for 2013 and 2020 are missing)'
+  ) +
+  theme_minimal()
+```
+
+By visualizing the changes in number of gang territories, we see a decreasing trend in Chicago. It'll be interest
+
+Next, we will visualize the change over the 2007 to 2020 (since data for 2021 are already shown above).
+```{r over-years, message=FALSE, warning=FALSE, results = "hide", fig.width=16, fig.height=24}
+ggplot() + 
+  geom_sf(data = chicago_community,
+          color = 'gray') + 
+  geom_sf(data = gang_boundary_2007_2019 %>% filter(year<2021), 
+          aes(fill = nation,
+              color = nation),
+          alpha = 0.8) + 
+  facet_wrap(~ year, ncol = 3) +
+  coord_sf() +
+  theme_minimal() +
+  theme(text = element_text(size = 20))   
+```
+
+From the facet figure, we observe majority of People nation gangs distribute in the west of Chicago, whereas Folks nation gangs distribute in the south of Chicago. Those are the regions where more of the low income families reside.
+
+## Number of gang territories in each commnunity
+```{r counts, message=FALSE, warning=FALSE, results = "hide", fig.width=16, fig.height=24}
+years=c(2007,2008,2009,2010,2011,2012,2014,2015,2016,2017,2018,2019,2021)
+
+gang_boundary_2007_2019 %>% 
+  as_tibble() %>% 
+  dplyr::select(GANG_NAME, year, community) %>% 
+  group_by(community, year) %>% 
+  summarise(n_gang_territories = n(),
+            year = max(year)) %>% 
+  right_join(bind_rows(replicate(13, chicago_community %>% 
+                                  as_tibble() %>% 
+                                  dplyr::select(community), simplify = FALSE)) %>% 
+               mutate(year = as.character(rep(years,each = 77))), 
+             by = c('community', 'year')) %>% 
+  left_join(chicago_community, by = 'community') %>%
+  # mutate(n_gang_territories = replace_na(n_gang_territories, 0)) %>% 
+  st_as_sf() %>% 
+  ggplot() +
+  geom_sf(aes(fill = n_gang_territories),
+          alpha = 0.8) +
+  facet_wrap(~ year, ncol = 3) +
+  coord_sf() +
+  theme_minimal() +
+  scale_fill_gradient(low="#77dd76", high="#ff6962",
+                      name = "# of Gang \nTerritories")+
+  theme(text = element_text(size = 20))   
+```
+Since many of the gang territories are across the border of the communities, we find the centroids for each community. The number of gang territories in a community is counted as number of centroids in the area. Please note that if a gang has mutliple territories, which is fairly common, then it will be count multiple times. Although there are gang territories in the south side, those territories are speadout rather than sharing a single community. In this sense, we may expect less conflicts among gangs when they are less concentrate.
+
+The community with the largest number of gang territories is Austin over the years. Austin has been recognized as the dealiest neighborhood in Chicago according to [news](https://www.chicagomag.com/city-life/july-2012/austin-chicagos-deadliest-neighborhood/). 
+
+On the contrary, communities of Forest Glen, Norwood Park, Edison Park, Loop, Mount Greenwood never had gang territories over the years. 
+
+## Divvy application (2021)
+```{r divvy, message=FALSE, warning=FALSE, results = "hide", fig.width=16, fig.height=24}
+
+## public data mapped from ‘/projects/e30686/data’
+divvy2021 <- read_csv('public_data/data/raw/divvy_2021.csv')
+
+# number of actions on each station
+divvy2021_frequency <- divvy2021 %>% 
+  group_by(id) %>% 
+  summarise(action = n(),
+            station_name = max(station_name),
+            longitude = max(longitude),
+            latitude = max(latitude),
+            location = max(location)) %>% 
+  # filter out Evanston
+  filter((longitude != 0) & (latitude != 0) & (latitude <= 42.01942
+))
+
+# map on 2021 gang data
+gang_boundary_2007_2019 %>% 
+  as_tibble() %>% 
+  dplyr::select(GANG_NAME, year, community) %>% 
+  group_by(community, year) %>% 
+  summarise(n_gang_territories = n(),
+            year = max(year)) %>% 
+  right_join(bind_rows(replicate(13, chicago_community %>% 
+                                   as_tibble() %>% 
+                                   dplyr::select(community), simplify = FALSE)) %>% 
+               mutate(year = as.character(rep(years,each = 77))), 
+             by = c('community', 'year')) %>% 
+  left_join(chicago_community, by = 'community') %>%
+  filter(year == '2021') %>%
+  st_as_sf() %>% 
+  ggplot() +
+  geom_sf(aes(fill = n_gang_territories),
+          alpha = 0.8) +
+  geom_point(data = divvy2021_frequency,
+          aes(x = longitude,
+              y = latitude,
+              size = action),
+          color = '#8281a0',
+          alpha = 0.4) +
+  scale_size(range = c(0, 20)) +
+  coord_sf(xlim = c(-88.0, -87.5), 
+           ylim = c(41.60, 42.05)) +
+  coord_sf() +
+  theme_minimal() +
+  scale_fill_gradient(low="#77dd76", high="#ff6962",
+                      name = "# of Gang \nTerritories") +
+  labs(size='# of actions') +
+  theme(text = element_text(size = 20)) 
+```
+
+The number of action is the number of transction happened at a given divvy station in 2021, i.e. the number of time stamps in the `divvy2021.csv` dataset. From the plot we see high density of activities are by the lake and in the north, with Loop, Lincoln Park, Lakeview, Near North Side having the most dense activities. Those communities are also have less number of gang.
+
+Looking at the community with the highest number of gang territories, there are still some activities in the Divvy bike rent and return, be much less dense when compare with east side of the city.
