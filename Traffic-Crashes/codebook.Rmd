@@ -1,0 +1,50 @@
+---
+title: "May Nguyen Codebook - Violence and Enforcement - Traffic Data"
+output:
+  html_document:
+    df_print: paged
+---
+
+`traffic_crash` - full data set of crashes with cleaned column names, with information about traffic crashes in Chicago from 2017 until January 2022
+
+
+`chicago_community_data` - shapefile of the community area data
+
+
+`subset` - data set of crashes only for 2021
+
+
+`point_data` - a subset of `subset` that only has columns 47 and 48, or latitude and longitude
+
+
+`geo_data` - copy of `chicago_community_data`
+
+
+`map_point_to_geo` - function to map all the `point_data` onto the community areas
+
+
+`final_data` - table with all the 2021 data of crashes and community areas
+
+
+`top_communities` - dataset with number of crashes per community area in 2021 with descending order
+
+
+`communities_n` - `top_communities` with some reordering and a removal of an empty row
+
+
+`traffic_crash_new` - `traffic_crash` without any NA values for latitude or longitude
+
+
+`final_combined` - full data set of `traffic_crash_new` with community area information
+
+
+`mph` - subset of `traffic_crash` with only information about speed limits at site of crashes (in increments of 5 only)
+
+
+`causes` - subset of `traffic_crash` with only information about causes of crashes
+
+
+`top_causes` - top 10 causes of `causes` with number of each cause
+
+
+`times` - subset of `traffic_crash` with only information about traffic crash time
