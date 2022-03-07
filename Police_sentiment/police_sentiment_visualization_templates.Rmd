@@ -1,0 +1,202 @@
+---
+title: "Chicago Police Sentiment Data"
+author: "Riley Harper"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    highlight: "tango"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+This Rmd overviews the Chicago Police Sentiment Data from 2017 to 2021, and suggests potential use cases. 
+
+## Datasets
+
+Police Sentiment data can be found here : [Police Sentiment](https://data.cityofchicago.org/Public-Safety/Police-Sentiment-Scores/28me-84fj)
+
+Shape file of Chicago Communities can be found here: [Chicago Communities](https://data.cityofchicago.org/Facilities-Geographic-Boundaries/Boundaries-Community-Areas-current-/cauq-8yn6)
+
+## Libraries to Load 
+
+```{r librarys and data, message=FALSE, warning=FALSE}
+# Packages to load 
+library(tidyverse)
+library(janitor)
+library(dlookr)
+library(dplyr)
+library(sf)
+library(viridis)
+library(stringi)
+library(plotly)
+
+```
+
+## Building the Sentiment Dataset
+
+### First 5 rows of the dataset
+
+```{r message=FALSE, warning=FALSE}
+sentiment <- read_csv("ChicagoPolice_Sentiment.csv") %>% clean_names()
+
+```
+
+```{r}
+
+head(sentiment, 5)
+
+```
+
+
+### Description of the Dataset
+
+This data is sourced by the Chicago Police.\ 
+
+In this dataset, each row represents one of the 77 communities, hence the 77 rows of data. There are two main measures from the Police Sentiment Report to analyze: Safety and Trust. Each row contains both a Safety and Trust score from the entire community.\
+
+This dataset allows us to look at the breakout of Trust and Safety scores across race, age, and sex demographics. \
+
+Here are the options for each demographic: \
+Race: African American, Asian American, Hispanic, White, Other\
+Age: Low, Medium, High\
+Sex: Female, Male\
+
+### Dataset Considerations 
+
+On the topic of race: \
+4 options for race and one other option does not allow for a sophisticated breakdown of ethnicity. The police have bucketed race into very broad categories and thus this analysis will also make claims that must be prefaced with this datasets broad bucketing of race.  \
+
+*find what age breakout means
+
+On the topic of sex and gender: 
+Two sexes are listed without the inclusion of intersex. Gender is also not considered, and therefore this analysis is limited to a binary analysis between the male and female sexes.  \
+
+This data set does not let us directly observe demographics of multiple characteristics of interest from their survey results. For example, we cannot analyze the trust score of middle aged female asian-americans. Access to those raw survey results is not available. \
+
+I am curious to see how the Chicago Police decided to break the demographics compares to the census team's work. \
+
+### Sentiment Scores by Year and Community
+
+This dataset assigns each community to coordinates and breaks out Police Sentiment Scores by Year and Community. 
+
+```{r Create the Dataset, results = "hide"}
+
+community_map <- read_sf("Boundaries_Communities/geo_export_c459ca8e-7bc0-4bf4-ab55-859107046061.shp")
+
+community_map <- community_map %>% 
+  mutate(community = stri_trans_general(community, id = "Title"))
+
+sentiment <- sentiment %>% 
+  left_join(community_map, by = c('community' = 'community'))
+
+head(sentiment, 5)
+  
+sentiment_2017 <- sentiment %>% 
+  filter(year == 2017)
+
+sentiment_2018 <- sentiment %>% 
+  filter(year == 2018)
+
+sentiment_2019 <- sentiment %>% 
+  filter(year == 2019)
+
+sentiment_2020 <- sentiment %>% 
+  filter(year == 2020)
+
+sentiment_2021 <- sentiment %>% 
+  filter(year == 2021)
+
+```
+
+## Example Use Cases
+
+### Map score to community area
+
+```{r}
+
+basic_map <- sentiment_2021 %>% # select the year to analyze
+  ggplot(aes(label = community, geometry = geometry)) + # get mapping of community and community name attached to the map
+  geom_sf(mapping = aes(fill = trust)) + # color of community will be determined by the score of the variable in 'fill'
+  theme_void() + # rest of the theme and scale related code below is to clean up the map to look clean. 
+  scale_fill_gradient(high="#77dd76", low="#ff6962") +
+  theme(legend.position = "bottom")
+
+basic_map
+
+```
+
+
+### Compare demographic to community average
+
+
+```{r Example Use Cases}
+
+demographic_to_average <- sentiment_2021 %>% 
+  ggplot(aes(label = community, geometry = geometry)) +
+  geom_sf(mapping = aes(fill = s_race_african_american - safety)) +
+  theme_void() +
+  scale_fill_gradient(high="#77dd76", low="#ff6962", breaks = c(-15, -10, -5, 0, 5, 10, 15)) +
+  theme(legend.position = "bottom")
+
+demographic_to_average
+
+```
+
+### Analyze Year to Year Data
+
+```{r}
+
+year_to_year <- ggplot(data = sentiment_2021, aes(label = community, geometry = geometry)) + # get mapping of community and community name attached to the map
+geom_sf(mapping = aes(fill = trust - sentiment_2020$trust)) + # pull sentiment 2020 trust data 
+  # color of community will be determined by the score of the variable in 'fill'
+theme_void() + # rest of the theme and scale related code below is to clean up the map to look clean. 
+scale_fill_gradient(high="#77dd76", low="#ff6962") +
+theme(legend.position = "bottom")
+
+year_to_year
+
+```
+
+
+## Interactive Versions of Each Graph
+
+```{r}
+
+ggplotly(basic_map)
+
+ggplotly(demographic_to_average)
+
+ggplotly(year_to_year)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

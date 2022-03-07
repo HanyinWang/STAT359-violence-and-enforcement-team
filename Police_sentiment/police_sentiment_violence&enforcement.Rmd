@@ -1,0 +1,239 @@
+---
+title: "Police Sentiment Data Analysis"
+author: "Riley Harper"
+date: "2/19/2022"
+output:
+  html_document:
+    toc: yes
+    toc_float: yes
+    highlight: tango
+  word_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Load Libraries and Data
+```{r librarys and data, echo=FALSE}
+
+library(tidyverse)
+
+library(janitor)
+
+library(dlookr)
+
+library(dplyr)
+
+library(DataExplorer)
+
+library(SmartEDA)
+library(readxl)
+
+library(BSDA)
+
+eda_sentiment <- read_csv("sentiment_eda.csv") %>% clean_names()
+
+
+sapply(eda_sentiment, mode)
+
+
+```
+
+## The Data
+
+### First 5 rows of the dataset
+
+```{r}
+head(eda_sentiment, 5)
+```
+
+### Description of the Dataset
+
+This data is sourced by the Chicago Police.\ 
+
+In this dataset, each row represents one of the 77 communities, hence the 77 rows of data. There are two main measures from the Police Sentiment Report to analyze: Safety and Trust. Each row contains both a Safety and Trust score from the entire community.\
+
+This dataset allows us to look at the breakout of Trust and Safety scores across race, age, and sex demographics. \
+
+Here are the options for each demographic: \
+Race: African American, Asian American, Hispanic, White, Other\
+Age: Low, Medium, High\
+Sex: Female, Male\
+
+### Dataset Considerations 
+
+On the topic of race: \
+4 options for race and one other option does not allow for a sophisticated breakdown of ethnicity. The police have bucketed race into very broad categories and thus this analysis will also make claims that must be prefaced with this datasets broad bucketing of race.  \
+
+*find what age breakout means
+
+On the topic of sex and gender: 
+Two sexes are listed without the inclusion of intersex. Gender is also not considered, and therefore this analysis is limited to a binary analysis between the male and female sexes.  \
+
+This data set does not let us directly observe demographics of multiple characteristics of interest from their survey results. For example, we cannot analyze the trust score of middle aged female asian-americans. Access to those raw survey results is not available. \
+
+I am curious to see how the Chicago Police decided to break the demographics compares to the census team's work. \
+
+# Introduction to Variables
+```{r}
+describe(eda_sentiment)
+```
+
+## Observations from 'describe'
+
+### On Safety
+
+The average safety score is 57.72883, and there are a few variables that deviate from this average at a glance that are going to be examined later.\ 
+
+The first is 's_race_african_american' with a trust score of 54.85857\
+The second is 's_race_white' with a trust score of 62.22935\
+The third is 's_race_other' with a trust score of 55.0774\
+The fourth is 's_age_high' with a trust score of 59.1428\
+
+### On Trust
+
+The average trust score is 60.91597, and there are a few variables that deviate from this average at a glance that are going to be examined later.\ 
+
+The first is 't_race_african_american' with a trust score of 55.64740\
+The second is 't_race_asian_american' with a trust score of 66.23234\
+The third is 't_race_other' with a trust score of 55.0774\
+The fourth is 't_race_white' with a trust score of 68.37506	\
+The fifth is 't_age_low' with a trust score of 56.21013\
+The sixth is 't_age_high' with a trust score of 65.29610	\
+
+
+Going forward, further analysis will be conducted to see if these differences are significant. 
+
+# Correlations
+
+```{r}
+plot_correlate(eda_sentiment[-c(1)])
+```
+
+## Correlations of Note
+
+### Relationship between Safety and Trust
+
+Before analysis, I would assume safety and trust are highly correlated. \
+
+Safety and Trust have a correlation of 0.9107112, giving strong evidence to this assumption. \
+
+All of the variables have a positive correlation to suggest that general increase in trust and safety means a increase in safety and trust sentiment to all groups categorized in this data set. This is not a novel finding, but is an important one because negative correlations would suggest efforts to increase safety and trust sentiment scores could correlate with a group feeling a negative impact towards their personal safety and trust sentiment towards the police. \ 
+
+We can continue this analysis with the assumption that increases in safety and trust police sentiment scores are positively correlated across all groups surveyed in the 77 communities. \ 
+
+
+# ANOVA-tests
+
+In this section, I am examining the notable differences in trust and safety of police sentiment scores from the mean analysis above.\
+
+To do this, 
+
+## On Safety
+
+As referenced in the primary describe analysis, here are the anova tests to check for differences in groups identified in the dataset on their perception of safety sentiment. 
+
+```{r}
+
+summary(aov(eda_sentiment$safety ~ eda_sentiment$s_race_african_american))
+
+summary(aov(eda_sentiment$safety ~ eda_sentiment$s_race_white))
+
+summary(aov(eda_sentiment$safety ~ eda_sentiment$s_race_other))
+
+summary(aov(eda_sentiment$safety ~ eda_sentiment$s_age_high))
+
+summary(aov(eda_sentiment$s_race_white ~ eda_sentiment$s_race_african_american))
+
+summary(aov(eda_sentiment$s_race_white ~ eda_sentiment$s_race_other))
+
+
+
+
+```
+
+
+
+## On Trust
+
+```{r}
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_race_african_american))
+
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_race_asian_american))
+
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_race_other))
+
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_race_white))
+
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_age_low))
+
+summary(aov(eda_sentiment$trust ~ eda_sentiment$t_age_high))
+
+summary(aov(eda_sentiment$t_race_white ~ eda_sentiment$t_race_african_american))
+
+summary(aov(eda_sentiment$t_age_low ~ eda_sentiment$t_age_high))
+
+summary(aov(eda_sentiment$t_race_white ~ eda_sentiment$t_race_other))
+
+```
+
+
+# ANOVA Interactions
+
+## Safety
+
+```{r}
+
+summary(aov(data = eda_sentiment, safety ~ s_race_white + s_race_other + s_race_white*s_race_other))
+
+summary(aov(data = eda_sentiment, safety ~ s_race_white + s_race_african_american + s_race_white*s_race_african_american))
+
+
+```
+
+
+## Trust
+
+```{r}
+
+summary(aov(data = eda_sentiment, trust ~ t_race_african_american + t_race_other + t_race_african_american*t_race_other  ))
+
+summary(aov(data = eda_sentiment, trust ~ t_race_african_american + t_race_asian_american + t_race_african_american*t_race_asian_american))
+
+summary(aov(data = eda_sentiment, trust ~ t_age_low + t_age_high + t_age_low*t_age_high))
+
+```
+
+The interaction between the two age groups, which indicates the main effect is incomplete. The other interactions are not significant and thus remain unchanged in our analysis.  
+
+### Takeaways from anova tests
+
+For each test, the results are statistically significant at the 0.001 alpha level, indicating a significant difference between the groups tested. \ 
+
+There are no novel insights from the data, based on the conversations we have had this quarter with the subject matter experts. People of color feel less safe and trustworthy of the police and these insights confirm this hypothesis. However, these metrics provide hard data to back these claims, and it is statistially significant at one of the lowest used alpha levels in statistics. 
+
+
+# Final Considerations for further analysis
+
+## emphasis on individual communities
+
+In the next steps, I want to bucket communities how the group sees fit for divvy. Treating each community as equal observations in the analysis is not the strongest way to approach this data. Further feedback from the rest of the violence and enforcement team, as well as the census group will inform this decision next class. 
+
+## for divvy 
+
+This analysis can be used to identify groups within specific communities where divvy is trying to operate and expand to be more equitable. \ 
+
+Next steps with this analysis can include taking the identified groups that feel significantly less safe and trustworthy towards the police. Marking the relevant communities from other groups data sets, and seeing where they stand in terms of trust and safety sentiment scores is important in considering which groups feel safe and secure when out on the road. \
+
+If these group's sentiments towards safety and trust are not identified in the analysis, then equaticity cannot map a full story to explain the necessary steps towards making bike-sharing more equitable.  \ 
+
+Data from the rest of the violence and enforcement team will be merged with this data set with the foreign key as 'Community'
+
+
+
+
