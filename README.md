@@ -16,6 +16,7 @@ How much do you agree with these statements? (Level from 0-10)
 
 
 ## Traffic crash
+Data for traffic crashes that occurred within Chicago with 50 variables including information about date of occurrence, cause of crash, location, type of crash, extent of damage, etc. The dataset is continually updated daily on the City of Chicago’s site. All crashes considered reportable have $1500 in damage or bodily injury to any person involved and involves at least one moving vehicle. However, the dataset contains all reported crash events, not just the criteria mentioned. The data is also owned by the Chicago Police Department and can be accessed [here](https://data.cityofchicago.org/Transportation/Traffic-Crashes-Crashes/85ca-t3if).
 
 
 ## Crime 
