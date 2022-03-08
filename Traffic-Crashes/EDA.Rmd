@@ -1,0 +1,170 @@
+---
+title: "Traffic_EDA"
+author: "May Nguyen"
+date: "2/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Traffic Crashes in Chicago from 2017 until now
+
+
+```{r load-packages, message = FALSE, warning = FALSE}
+library(readr)
+library(sf)
+library(janitor)
+library(raster)
+library(sp)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(lubridate)
+library(htmltools)
+library(tidyverse)
+library(dplyr)
+library(rgdal)
+library(leaflet)
+library(viridis)
+```
+
+## Data cleaning - sorting into communities
+
+
+```{r communities, message = FALSE, warning = FALSE, results = FALSE}
+traffic_crash <- read_csv("traffic_crash.csv") %>%
+  clean_names()
+
+# read in data
+chicago_community_data <- st_read("community_boundaries.shp") %>% 
+  clean_names()
+
+#isolate 2021 only
+subset <- traffic_crash %>%
+  filter(str_detect(crash_date, pattern = "2021"))
+
+#isolate location only
+point_data <- subset[,47:48] %>%
+  as.data.frame() %>%
+  na.omit() 
+
+
+#mapping communities to each location
+geo_data <- read_sf("community_boundaries.shp")
+map_point_to_geo <- function(point_data, geo_data, column_name, assign_if_not_in, long_lat_vec){
+  point_data_sf <- st_as_sf(point_data, coords = long_lat_vec, crs = st_crs(geo_data))
+  #intersection column
+  point_data <- point_data_sf %>%
+    mutate(intersection = as.integer(st_intersects(geometry, geo_data)),
+           community = if_else(is.na(intersection), '', geo_data[[column_name]][intersection]))
+  point_data_done <- tibble(point_data) %>%
+    mutate(community = ifelse(is.na(intersection), assign_if_not_in, community)) %>%
+    dplyr::select(-intersection)
+  return(point_data_done)
+}
+#Example of calling function
+#dataset of neighborhood categorizations for the whole sample
+final_data <- map_point_to_geo(point_data, geo_data, "community", "", c("longitude", "latitude"))
+
+#mapping whole dataset - also not able to do yet - only works on less than 600 points of a sample currently
+chicago_community_data %>%   
+  ggplot() +
+  geom_sf() +
+  theme_void() +
+  geom_point(data = point_data, aes(x = longitude, y = latitude), stat = "identity")
+
+
+#sorting by greatest number of communities
+top_communities <- final_data %>% group_by(community) %>% summarise(n=n()) %>% ungroup() %>% arrange(-n)
+
+
+#extracting only the 77 communities and putting them in alphabetical order
+communities_n <- final_data %>% group_by(community) %>% summarise(n=n()) %>% ungroup() %>% arrange(-n)
+
+communities_n <- communities_n[1:77,]
+
+communities_n <- communities_n[order(communities_n$community), ]
+
+
+#heatmap of traffic crashes in Chicago during 2021
+chicago_community_data %>%
+  ggplot() +
+  geom_sf(mapping = aes(geometry = geometry, fill = communities_n$n)) +
+  scale_fill_viridis() +
+  theme_void() +
+  labs(fill = "Number of crashes in 2021")
+
+```
+
+
+
+
+Here we see that areas with highest concentrations are all on the North Side or in the Downtown Area except for Greater Grand Crossing, which is on the South Side.
+
+Otherwise, the crash data looks pretty evenly distrubuted across Chicago, with maybe less density in the South Side due to the lower density of population.
+
+## Speed Limits
+```{r speed, message = FALSE, warning = FALSE, results = FALSE}
+#taking out weird speed linmits
+#e30686
+mph <- traffic_crash[,5] %>%
+  as.data.frame() %>%
+  na.omit() %>%
+  filter(posted_speed_limit %% 5 == 0, .preserve = TRUE)
+
+
+#graphing speed limit zones
+mph %>%
+  count(posted_speed_limit) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  ggplot(aes(x = prop, y = posted_speed_limit)) + 
+  geom_segment(aes(x = 0, y = posted_speed_limit, xend = prop, yend = posted_speed_limit, colour = "red")) +
+  geom_point() +
+  geom_text(aes(label = percent(prop)), vjust = -1) +
+  coord_cartesian(clip = "off") +
+  scale_x_continuous(labels = percent_format()) +
+  theme(legend.position="none") +
+  labs(x = "Percentage of Speed Zones at Accident", y = "Speed Zone (mph)", title = "Speed Zones at Crash Sites")
+
+```
+
+30 mph is the great majority of speed limits at crash sites. This is most likely due to how common 30 mph zones are, but we also see that crashes occur at all speeds. Most likely, the graph is right skewed, having a higher rate of crashes per proportion on the higher end of the scale.
+
+## Causes
+
+```{r causes, message = FALSE, warning = FALSE, results = FALSE}
+#causes of traffic crash
+causes <- traffic_crash[,23] %>%
+  as.data.frame() %>%
+  na.omit()
+
+#only top 10 causes
+top_causes <- causes %>% group_by(prim_contributory_cause) %>% summarise(n=n()) %>% ungroup() %>% arrange(-n) 
+
+#filter out only top 10 causes
+causes <- traffic_crash[,23] %>%
+  filter(prim_contributory_cause == "UNABLE TO DETERMINE" | 
+           prim_contributory_cause == "FAILING TO YIELD RIGHT-OF-WAY" | 
+           prim_contributory_cause == "FOLLOWING TOO CLOSELY" | 
+           prim_contributory_cause == "NOT APPLICABLE" | 
+           prim_contributory_cause == "IMPROPER OVERTAKING/PASSING" | 
+           prim_contributory_cause == "FAILING TO REDUCE SPEED TO AVOID CRASH" | 
+           prim_contributory_cause == "IMPROPER BACKING" | 
+           prim_contributory_cause == "IMPROPER LANE USAGE" | 
+           prim_contributory_cause == "IMPROPER TURNING/NO SIGNAL" | 
+           prim_contributory_cause == "DRIVING SKILLS/KNOWLEDGE/EXPERIENCE" , .preserve = TRUE)
+
+#This graph could still use a lot of work, but similar data cleaning can be applied to the other 50 variables
+causes %>%
+  ggplot(aes(x = forcats::fct_infreq(prim_contributory_cause))) +
+  geom_bar(colour = "#4E2A84", fill =  "#4E2A84") +
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, hjust=0)) + 
+  coord_flip() +
+  labs(x = "Primary Contributory Cause", y = "Number of Incidences", title = "Top Causes of Crashes in 2021")
+```
+
+As we can see, here are the top causes for car crashes. Many are unable to determine or not applicable. Hopefully there can be a greater campaign effort to reduce these certain causes.
+
