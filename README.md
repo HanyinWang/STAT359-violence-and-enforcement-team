@@ -20,6 +20,8 @@ Data for traffic crashes that occurred within Chicago with 50 variables includin
 
 
 ## Crime 
+Data for Chicago Crimes 2021 dataset was retrieved from the [Chicago Data Portal](https://data.cityofchicago.org/Public-Safety/Crimes-2021/dwme-t96c). The dataset includes the location, date and charge for each crime that occurred during 2021 in Chicago. The data is provided by the Chicago Police Department, and each year has an individual dataset.
+
 
 
 ## Gang Boundary
