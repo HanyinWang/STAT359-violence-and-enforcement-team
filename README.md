@@ -1,4 +1,4 @@
-# STAT359-Violence and Enforcement Team
+# Chicago Violence and Enforcement Data
 
 The Violene and Enforcement team gathered and analyzed four different data sources closely related to the violence and enforcement considerations of Divvy bike in Chicago.
 
